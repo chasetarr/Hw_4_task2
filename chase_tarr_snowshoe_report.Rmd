@@ -1,0 +1,175 @@
+---
+title: "Task 2 - Bonanza Snowshoe Hares"
+author: "Chase Tarr"
+date: "11/8/2021"
+output: html_document
+---
+
+## Introduction / Overview
+  - This document analyzes Snowshoe Hare recorded in the Bonanza Creek Experimental Forest. This code will indicate the annual juvenile hares trapped and compare juvenile hares based upon sex, location, and weight. Furthermore, in section 3 we will compare male and female juvenile snowshoe hares based upon weight, and finish with the differentiation of hind foot length in correlation to juvenile weight with sex omitted for this final data analysis. Mean, standard deviation, and total counts of juvenile hares will be presented when necessary based upon the variables of study for the reader to understand the comparison on a quantitative level. The purpose of this research was to study population fluctuations of approximately 8-11 years and produce quantitative data as only qualitative data has been present as of recent. 
+
+## Data and Analyses
+  - The data in this study includes; date, time, name of trapping grid, trap ID, left ear tag number, right ear tag number (when available), sex of hare captured, age of capture, weight of hare, any notes on the capture, a unique animal identifier labeled "b_key", and the session identifier defined as multiple consecutive trap nights at a given site. Tools used for this study will be graphs in the form of histograms, QQ plots, scatterplots, and data tables based upon the best possible visualization method in accordance with data. 
+  citation: 
+```{r setup, include=TRUE, warning = FALSE, message = FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+# attaching packages
+library(tidyverse)
+library(janitor)
+library(DT)
+library(broom)
+library(equatiomatic)
+library(here)
+library(lubridate)
+```
+
+ - Reading in the data
+```{r}
+bonanza_hares <- read_csv(here("data", "bonanza_hares.csv"))
+```
+## Data and Analyses  
+  
+
+## Visualization  
+#### Juvenile Hair Trap Counts
+ - annual juvenile hare trap counts
+ 
+```{r}
+# counting the total number of juvenile hare trappings during each year of the study
+juvenile_hair <- bonanza_hares %>% 
+  filter(age == "j") %>% 
+  get_dupes(trap) %>% 
+  mutate(date_new = mdy(date)) %>% 
+  mutate(year = year(date_new)) %>% 
+  group_by(year)
+  
+juvenile_hair_count <- juvenile_hair %>% 
+  group_by(year) %>% 
+  summarize(hare_count = n()) %>% 
+  summarize(mean_count = mean(hare_count, na.rm = TRUE),
+            median_count = median(hare_count, na.rm = TRUE),
+            sd_count = sd(hare_count, na.rm = TRUE))
+
+```
+
+
+```{r}
+ggplot(data = juvenile_hair, aes(x = year)) +
+  geom_histogram(bins = 15, color = "black", fill = "red")+
+  theme_classic() +
+  scale_x_continuous(breaks = 1999:2012)+
+  labs(title = "Juvenile Hares Trapped (per year)",
+       x = "Year", y = "Count",
+       caption = expression(paste(bold("Figure 1:"), "Total Juvenile Hares Trapped Per Year"))) +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.caption = element_text(hjust = 0.5))
+
+```
+
+#### Juvenile Hair Weights
+  - comparing juvenile hare weights by sex and site (grid)
+  
+```{r}
+juvenile_weights <- juvenile_hair %>% 
+  mutate(Site = case_when(
+    grid == "bonrip" ~ "Bonanza Riparian",
+    grid == "bonmat" ~ "Bonanza Mature",
+    grid == "bonbs" ~ "Black Spruce")
+  ) %>% 
+  mutate(Sex = case_when(
+    sex == "f" ~ "Female",
+    sex == "m" ~ "Male",
+    is.na(sex) == TRUE ~ "Unknown")
+  ) %>% 
+  select(weight, Site, Sex)
+  
+juvenile_weights_count <- juvenile_weights %>% 
+  group_by(Site, Sex) %>% 
+  summarize(mean_weight = mean(weight, na.rm = TRUE))
+```
+
+
+```{r}
+ggplot(data = juvenile_weights_count, aes(x = Sex, y = mean_weight, fill = Sex, borders(black))) +
+  scale_fill_manual(values = c("red", "blue", "green")) +
+  theme() +
+  geom_col(na.rm = FALSE) +
+  facet_wrap(~ Site) +
+  labs(x = "Sex", y = "Weight (g)",
+       caption = expression(paste(bold("Figure 2: "), "Mean Juvenile Hare Weights based on Sex and Site"))) +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.caption = element_text(hjust = 0.5))
+
+```
+
+#### Juvenile Weight Comparison
+  - comparing the male and female weights included in this study.
+  
+   - Creating a graph to further visualize the data
+   
+```{r include = FALSE}
+juvenile_weights_mf <- juvenile_weights %>% 
+  filter(Sex %in% c("Male","Female"))
+
+ggplot(data = juvenile_weights_mf, aes(sample = weight , fill = Sex))+
+  geom_qq() +
+  facet_wrap(~ Sex, scales = 'free') +
+  theme_bw() +
+  labs(x = "Sex")
+
+ggplot(data = juvenile_weights_mf, aes(x = weight)) +
+  geom_histogram(bins = 10) +
+  facet_wrap(~ Sex)
+```
+   
+   - Creating a table to visualize standard deviation, mean, and sample size
+```{r}
+weight_juv_sex <- juvenile_weights_mf %>% 
+  group_by(Sex) %>% 
+  summarize(
+    mean_weight_g = round(mean(weight, na.rm = TRUE), 2),
+    sd_weight_g = round(sd(weight, na.rm = TRUE), 2),
+    total_hares_counted = n())
+
+datatable(weight_juv_sex) 
+```
+   
+#### Juvenile Weight ~ Hind Foot Length
+   - Exploring the relationship between snowshoe hare hind foot length (mm) and weight
+
+```{r}
+juvenile_hindft <- juvenile_hair %>% 
+  select(hindft, weight)
+
+ggplot(data = juvenile_hindft, aes(sample = hindft, fill = weight)) +
+  geom_qq() +
+  labs(y = "Hind Foot Length (mm)",
+       caption = expression(paste(bold("Figure 3: "), "Distribution of Hindfoot Length as a function of Juvenile Weight (g)"))) +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.caption = element_text(hjust = 0.5))
+
+ggplot(data = juvenile_hindft, aes(x = weight, y = hindft)) +
+  geom_point() +
+  labs(x = "Hare Weight (g)", y = "Hindfoot Length (mm)",
+       caption = expression(paste(bold("Figure 4: "), "Juvenile Hare Weight (g) as a function of Hindfoot Length (mm)"))) +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.caption = element_text(hjust = 0.5))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
